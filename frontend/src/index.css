@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--font-family);
+  @apply bg-slate-50 text-slate-900;
+}
+
+@theme {
+  --color-brand-primary: #0ea5e9;
+  --color-brand-secondary: #0f172a;
+  --color-brand-accent: #f43f5e;
+}
+
+.glass-morphism {
+  background: rgba(255, 255, 255, 0.70);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.dashboard-card {
+  background: rgba(255, 255, 255, 0.70);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  @apply rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02];
+}
+
+.btn-primary {
+  @apply px-6 py-3 bg-brand-primary text-white rounded-xl font-semibold shadow-lg shadow-sky-200 hover:bg-sky-600 transition-all active:scale-95;
+}
+
+.btn-secondary {
+  @apply px-6 py-3 bg-white border-2 border-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-50 transition-all active:scale-95;
+}
+
+.input-field {
+  @apply w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition-all;
+}
