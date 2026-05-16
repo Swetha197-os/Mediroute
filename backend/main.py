@@ -317,3 +317,7 @@ def chat(data: schemas.ChatbotRequest, user: models.User = Depends(get_current_u
 
 models.Base.metadata.create_all(bind=database.engine)
 
+@app.get("/")
+def root():
+    return {"status": "working"}
+
