@@ -213,6 +213,7 @@ def update_health(data: schemas.PatientHealthProfile, user: models.User = Depend
 # --- EMERGENCY WORKFLOW ---
 @app.post("/emergency/request")
 def create_emergency_request(payload: dict, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    
     try:
         emergency = models.EmergencyRequest(
             patient_id=current_user.id,
@@ -316,6 +317,3 @@ def chat(data: schemas.ChatbotRequest, user: models.User = Depends(get_current_u
 
 models.Base.metadata.create_all(bind=database.engine)
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
