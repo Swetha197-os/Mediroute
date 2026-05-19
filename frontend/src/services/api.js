@@ -11,7 +11,7 @@ const api = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
-    timeout: 15000, // Increased timeout for connectivity issues
+    timeout: 30000, // Increased timeout for connectivity issues
 });
 
 // Task 8: Prevent toast spam
