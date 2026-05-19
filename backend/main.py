@@ -24,16 +24,16 @@ except ImportError:
 app = FastAPI(title="MediRoute AI API")
 
 # Ensure CORS is added immediately after app initialization
-app.add_middleware(
+aapp.add_middleware(
     CORSMiddleware,
     allow_origins=[
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://mediroute-navy.vercel.app"
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://mediroute-navy.vercel.app",
     ],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
