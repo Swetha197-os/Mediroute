@@ -315,7 +315,7 @@ def chat(data: schemas.ChatbotRequest, user: models.User = Depends(get_current_u
     if "emergency" in msg: return {"response": "I've detected an emergency. Please use the triage tool on your dashboard."}
     return {"response": f"Hello {user.full_name}, I'm MediRoute AI. I can help you with hospital discovery and emergency tracking."}
 
-models.Base.metadata.create_all(bind=database.engine)
+# models.Base.metadata.create_all(bind=database.engine)
 
 @app.get("/")
 def root():
