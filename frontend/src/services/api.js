@@ -95,9 +95,10 @@ export const hospitalService = {
 
 export const overpassService = {
     fetchNearby: async (lat, lng, radius) => {
-        return {
-            elements: []
-        };
+        const res = await api.get(
+            `/osm/nearby?lat=${lat}&lng=${lng}&radius=${radius}`
+        );
+        return res.data;
     }
 };
 export const emergencyService = {
