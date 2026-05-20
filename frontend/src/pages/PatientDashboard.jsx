@@ -138,8 +138,13 @@ const PatientDashboard = () => {
 
             const regRes = await hospitalService.getNearby(coords.lat, coords.lng, radius / 1000);
             console.log("[PATIENT API RAW]", regRes.data);
-            dbHospitals = regRes.data.map(h => ({
+            const rawData = regRes?.data || [];
+            dbHospitals = (Array.isArray(rawData) ? rawData : []).map(h => ({
                 ...h,
+                latitude: parseFloat(h.latitude || h.lat),
+                longitude: parseFloat(h.longitude || h.lng),
+                lat: parseFloat(h.lat || h.latitude),
+                lng: parseFloat(h.lng || h.longitude),
                 is_registered: true,
                 source: 'DB'
             }));
@@ -151,23 +156,34 @@ const PatientDashboard = () => {
         // 2. Fetch OSM Data
         try {
             const osmData = await overpassService.fetchNearby(coords.lat, coords.lng, radius);
-            osmHospitals = osmData.elements
+            console.log("[OSM DATA RECEIVED]", osmData);
+            
+            osmHospitals = (osmData?.elements || [])
                 .map(el => {
+                    if (!el) return null;
+                    // Support both node (direct lat/lon) and way (center.lat/center.lon) formats
                     const lat = el.lat || (el.center && el.center.lat);
-                    const lon = el.lon || (el.center && el.center.lon);
+                    const lon = el.lon || el.lng || (el.center && (el.center.lon || el.center.lng));
+                    
                     if (!lat || !lon) return null;
                     const tags = el.tags || {};
+                    
                     return {
-                        id: `osm-${el.id}`,
+                        id: el.id ? `osm-${el.id}` : `osm-${Math.random()}`,
                         name: tags.name || tags["name:en"] || "Medical Center",
                         address: tags['addr:full'] || tags['addr:street'] || "Regional Sector",
-                        latitude: lat,
-                        longitude: lon,
+                        latitude: parseFloat(lat),
+                        longitude: parseFloat(lon),
+                        lat: parseFloat(lat),
+                        lng: parseFloat(lon),
                         is_registered: false,
                         source: 'OSM'
                     };
                 })
-                .filter(Boolean);
+                .filter(Boolean)
+                .filter(h => h.latitude && h.longitude);
+                
+            console.log("[PARSED OSM FACILITIES]", osmHospitals);
         } catch (err) {
             console.error("[OSM ERROR]", err);
         }
@@ -191,7 +207,12 @@ const PatientDashboard = () => {
             if (!isDuplicate) {
                 // Proximity check: Is there a DB hospital within 300m?
                 for (let dbH of dbHospitals) {
-                    const d = haversine(dbH.latitude, dbH.longitude, h.latitude, h.longitude);
+                    const d = haversine(
+                        dbH.latitude || dbH.lat,
+                        dbH.longitude || dbH.lng,
+                        h.latitude || h.lat,
+                        h.longitude || h.lng
+                    );
                     if (d < 0.3) { // 300 meters
                         isDuplicate = true;
                         break;
@@ -209,7 +230,12 @@ const PatientDashboard = () => {
                 // DISTANCE MUST ALWAYS BE FROM USER CURRENT LOCATION (GPS)
                 const refLat = liveLocation?.lat || coords.lat;
                 const refLng = liveLocation?.lng || coords.lng;
-                const dist = haversine(refLat, refLng, h.latitude, h.longitude);
+                const dist = haversine(
+                    refLat,
+                    refLng,
+                    h.latitude || h.lat,
+                    h.longitude || h.lng
+                );
 
                 const final = { ...h, distance: parseFloat(dist.toFixed(2)) };
                 console.log("[DISTANCE DISPLAYED]", final.name, final.distance, "KM");
