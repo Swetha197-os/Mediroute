@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text, or_
 from datetime import datetime, timedelta
 import models, schemas, auth, database
+models.Base.metadata.create_all(bind=database.engine)
 import sys, os, shutil, requests
 from typing import List, Optional
 from math import radians, sin, cos, sqrt, atan2
