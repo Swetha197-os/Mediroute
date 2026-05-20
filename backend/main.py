@@ -24,7 +24,7 @@ except ImportError:
 app = FastAPI(title="MediRoute AI API")
 
 # Ensure CORS is added immediately after app initialization
-aapp.add_middleware(
+app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
