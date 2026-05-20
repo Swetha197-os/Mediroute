@@ -313,6 +313,29 @@ def chat(data: schemas.ChatbotRequest, user: models.User = Depends(get_current_u
 
 # models.Base.metadata.create_all(bind=database.engine)
 
+@app.get("/osm/nearby")
+def osm_nearby(lat: float, lng: float, radius: int = 2000):
+
+    query = f"""
+    [out:json][timeout:25];
+    (
+      node["amenity"~"hospital|clinic|doctors|pharmacy"](around:{radius},{lat},{lng});
+      way["amenity"~"hospital|clinic|doctors|pharmacy"](around:{radius},{lat},{lng});
+      relation["amenity"~"hospital|clinic|doctors|pharmacy"](around:{radius},{lat},{lng});
+    );
+    out body;
+    >;
+    out skel qt;
+    """
+
+    response = requests.post(
+        "https://overpass-api.de/api/interpreter",
+        data=query,
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+
+    return response.json()
+
 @app.get("/")
 def root():
     return {"status": "working"}
