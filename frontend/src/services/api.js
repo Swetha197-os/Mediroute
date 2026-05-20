@@ -95,10 +95,13 @@ export const hospitalService = {
 
 export const overpassService = {
     fetchNearby: async (lat, lng, radius) => {
-        return { data: [] };
+        return {
+            data: {
+                elements: []
+            }
+        };
     }
 };
-
 export const emergencyService = {
     createRequest: (data) => api.post('/emergency/request', data),
     getQueue: () => api.get('/emergency/queue'),
