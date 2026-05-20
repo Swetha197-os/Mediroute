@@ -24,11 +24,20 @@ except ImportError:
 
 app = FastAPI(title="MediRoute AI API")
 
-# Ensure CORS is added immediately after app initialization
+# --- CORS SECURE WHITELIST CONFIGURATION ---
+# Allows explicit production Vercel frontend and local development servers
+origins = [
+    "https://mediroute-navy.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -314,27 +323,53 @@ def chat(data: schemas.ChatbotRequest, user: models.User = Depends(get_current_u
 # models.Base.metadata.create_all(bind=database.engine)
 
 @app.get("/osm/nearby")
-def osm_nearby(lat: float, lng: float, radius: int = 2000):
+def osm_nearby(lat: float, lng: float, radius: float = 2000):
+    # Cast radius to integer to fit Overpass query structure constraints.
+    # Accepting a float parameter protects the endpoint from crashing with 422 
+    # validation errors if the frontend sends decimal radius numbers.
+    int_radius = int(radius)
 
+    # Optimized query: only query node and way, and use 'out center;' 
+    # to avoid returning full geometry coordinates. Excludes relations to prevent extreme lag.
     query = f"""
-    [out:json][timeout:25];
+    [out:json][timeout:10];
     (
-      node["amenity"~"hospital|clinic|doctors|pharmacy"](around:{radius},{lat},{lng});
-      way["amenity"~"hospital|clinic|doctors|pharmacy"](around:{radius},{lat},{lng});
-      relation["amenity"~"hospital|clinic|doctors|pharmacy"](around:{radius},{lat},{lng});
+      node["amenity"~"hospital|clinic|doctors|pharmacy"](around:{int_radius},{lat},{lng});
+      way["amenity"~"hospital|clinic|doctors|pharmacy"](around:{int_radius},{lat},{lng});
     );
-    out body;
-    >;
-    out skel qt;
+    out center;
     """
 
-    response = requests.post(
+    # List of public Overpass API interpreter instances for automatic failover
+    OVERPASS_MIRRORS = [
         "https://overpass-api.de/api/interpreter",
-        data=query,
-        headers={"Content-Type": "application/x-www-form-urlencoded"}
-    )
+        "https://lz4.overpass-api.de/api/interpreter",
+        "https://z.overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+    ]
 
-    return response.json()
+    for url in OVERPASS_MIRRORS:
+        try:
+            print(f"[OSM INFO] Fetching from Overpass mirror: {url}")
+            response = requests.post(
+                url,
+                data={"data": query},
+                headers={"User-Agent": "MediRoute/1.0 (Contact: admin@mediroute.com)"},
+                timeout=12 # 12-second timeout gives ample time to respond while allowing failover within Render's 30s budget
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                print(f"[OSM SUCCESS] Loaded {len(data.get('elements', []))} elements from {url}")
+                return data
+            else:
+                print(f"[OSM WARNING] Mirror {url} returned status {response.status_code}: {response.text[:200]}")
+        except Exception as e:
+            print(f"[OSM WARNING] Exception when calling mirror {url}: {e}")
+
+    # Fallback if all mirrors fail
+    print("[OSM ERROR] All Overpass API mirrors failed or timed out.")
+    return {"elements": []}
 
 @app.get("/")
 def root():

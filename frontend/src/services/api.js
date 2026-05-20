@@ -95,10 +95,18 @@ export const hospitalService = {
 
 export const overpassService = {
     fetchNearby: async (lat, lng, radius) => {
-        const res = await api.get(
-            `/osm/nearby?lat=${lat}&lng=${lng}&radius=${radius}`
-        );
-        return res.data;
+        try {
+            // Ensure radius is passed as a rounded integer
+            const intRadius = Math.round(radius);
+            const res = await api.get(
+                `/osm/nearby?lat=${lat}&lng=${lng}&radius=${intRadius}`
+            );
+            return res.data;
+        } catch (error) {
+            console.error("[overpassService.fetchNearby ERROR]", error);
+            // Return standard structured fallback array so the dashboard UI doesn't crash
+            return { elements: [] };
+        }
     }
 };
 export const emergencyService = {
