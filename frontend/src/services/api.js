@@ -96,9 +96,7 @@ export const hospitalService = {
 export const overpassService = {
     fetchNearby: async (lat, lng, radius) => {
         return {
-            data: {
-                elements: []
-            }
+            elements: []
         };
     }
 };
