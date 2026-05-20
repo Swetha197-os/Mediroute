@@ -26,13 +26,7 @@ app = FastAPI(title="MediRoute AI API")
 # Ensure CORS is added immediately after app initialization
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://mediroute-navy.vercel.app",
-    ],
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -323,4 +317,5 @@ def root():
     return {"status": "working"}
 
 # render redeploy trigger
+# cors final fix
 
