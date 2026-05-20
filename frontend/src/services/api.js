@@ -95,24 +95,7 @@ export const hospitalService = {
 
 export const overpassService = {
     fetchNearby: async (lat, lng, radius) => {
-        const query = `
-            [out:json][timeout:25];
-            (
-              node["amenity"~"hospital|clinic|doctors|pharmacy"](around:${radius},${lat},${lng});
-              way["amenity"~"hospital|clinic|doctors|pharmacy"](around:${radius},${lat},${lng});
-              relation["amenity"~"hospital|clinic|doctors|pharmacy"](around:${radius},${lat},${lng});
-              node["healthcare"~"hospital|clinic|centre|doctors"](around:${radius},${lat},${lng});
-              way["healthcare"~"hospital|clinic|centre|doctors"](around:${radius},${lat},${lng});
-              relation["healthcare"~"hospital|clinic|centre|doctors"](around:${radius},${lat},${lng});
-            );
-            out body;
-            >;
-            out skel qt;
-        `;
-        const res = await axios.post('https://overpass-api.de/api/interpreter', query, {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-        });
-        return res.data;
+        return { data: [] };
     }
 };
 
