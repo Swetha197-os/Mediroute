@@ -69,10 +69,19 @@ function haversine(lat1, lon1, lat2, lon2) {
     return isNaN(distance) ? 999 : distance;
 }
 
+// Coordinates Validation Helper
+const isValidCoordinate = (lat, lng) => {
+    if (lat === null || lat === undefined || isNaN(lat)) return false;
+    if (lng === null || lng === undefined || isNaN(lng)) return false;
+    const latNum = parseFloat(lat);
+    const lngNum = parseFloat(lng);
+    return latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180;
+};
+
 const MapUpdater = ({ coords }) => {
     const map = useMap();
     useEffect(() => {
-        if (coords) {
+        if (coords && isValidCoordinate(coords.lat, coords.lng)) {
             map.flyTo([coords.lat, coords.lng], 13);
         }
     }, [coords, map]);
@@ -88,6 +97,17 @@ const PatientDashboard = () => {
     const [radius, setRadius] = useState(5000);
     const [locStatus, setLocStatus] = useState('pending');
     const isFetchingRef = useRef(false);
+    
+    // Detailed logging for map render count
+    const mapRenderCount = useRef(0);
+    const showMap = liveLocation && isValidCoordinate(coords.lat, coords.lng) && isValidCoordinate(liveLocation.lat, liveLocation.lng);
+
+    useEffect(() => {
+        if (showMap) {
+            mapRenderCount.current += 1;
+            console.log(`[MAP RENDER COUNT] Map rendered/updated: ${mapRenderCount.current} times`);
+        }
+    });
 
     useEffect(() => {
         detectLocation();
@@ -111,13 +131,14 @@ const PatientDashboard = () => {
                 setLiveLocation(newCoords);
                 setCoords(newCoords);
                 setLocStatus('pinpointed');
-                console.log("[LIVE GPS]", newCoords);
+                console.log("[GPS COORDINATES DETECTED]", newCoords);
             },
             (err) => {
                 setLocStatus('denied');
                 const fallback = { lat: 13.0827, lng: 80.2707 };
                 setLiveLocation(fallback);
                 setCoords(fallback);
+                console.log("[GPS COORDINATES DETECTED] Failed/Denied, using fallback:", fallback);
             }
         );
     };
@@ -139,15 +160,33 @@ const PatientDashboard = () => {
             const regRes = await hospitalService.getNearby(coords.lat, coords.lng, radius / 1000);
             console.log("[PATIENT API RAW]", regRes.data);
             const rawData = regRes?.data || [];
-            dbHospitals = (Array.isArray(rawData) ? rawData : []).map(h => ({
-                ...h,
-                latitude: parseFloat(h.latitude || h.lat),
-                longitude: parseFloat(h.longitude || h.lng),
-                lat: parseFloat(h.lat || h.latitude),
-                lng: parseFloat(h.lng || h.longitude),
-                is_registered: true,
-                source: 'DB'
-            }));
+            dbHospitals = (Array.isArray(rawData) ? rawData : [])
+                .map(h => {
+                    const latVal = parseFloat(h.latitude || h.lat);
+                    const lngVal = parseFloat(h.longitude || h.lng);
+                    return {
+                        id: h.id,
+                        name: h.name,
+                        lat: latVal,
+                        lng: lngVal,
+                        type: h.type || 'hospital',
+                        address: h.address || "Registered Hospital",
+                        available_beds: h.available_beds,
+                        total_beds: h.total_beds,
+                        available_icu: h.available_icu,
+                        total_icu: h.total_icu,
+                        available_ambulances: h.available_ambulances,
+                        total_ambulances: h.total_ambulances,
+                        wait_time: h.wait_time,
+                        rating: h.rating,
+                        is_registered: true,
+                        source: 'DB',
+                        // Compatibility properties
+                        latitude: latVal,
+                        longitude: lngVal
+                    };
+                })
+                .filter(h => isValidCoordinate(h.lat, h.lng));
             console.log("[LIVE DB RESOURCES LOADED]", dbHospitals);
         } catch (err) {
             console.warn("[SYNC ERROR] DB Fetch Failed", err);
@@ -156,32 +195,37 @@ const PatientDashboard = () => {
         // 2. Fetch OSM Data
         try {
             const osmData = await overpassService.fetchNearby(coords.lat, coords.lng, radius);
-            console.log("[OSM DATA RECEIVED]", osmData);
+            const elements = osmData?.elements || [];
+            console.log("[OSM RESPONSE RECEIVED] Size:", JSON.stringify(osmData).length, "bytes, Elements:", elements.length);
             
             osmHospitals = (osmData?.elements || [])
                 .map(el => {
                     if (!el) return null;
                     // Support both node (direct lat/lon) and way (center.lat/center.lon) formats
-                    const lat = el.lat || (el.center && el.center.lat);
-                    const lon = el.lon || el.lng || (el.center && (el.center.lon || el.center.lng));
+                    const latVal = el.lat || (el.center && el.center.lat);
+                    const lngVal = el.lon || el.lng || (el.center && (el.center.lon || el.center.lng));
                     
-                    if (!lat || !lon) return null;
+                    if (!latVal || !lngVal) return null;
+                    const parsedLat = parseFloat(latVal);
+                    const parsedLng = parseFloat(lngVal);
                     const tags = el.tags || {};
                     
                     return {
                         id: el.id ? `osm-${el.id}` : `osm-${Math.random()}`,
                         name: tags.name || tags["name:en"] || "Medical Center",
+                        lat: parsedLat,
+                        lng: parsedLng,
+                        type: tags.amenity || 'hospital',
                         address: tags['addr:full'] || tags['addr:street'] || "Regional Sector",
-                        latitude: parseFloat(lat),
-                        longitude: parseFloat(lon),
-                        lat: parseFloat(lat),
-                        lng: parseFloat(lon),
                         is_registered: false,
-                        source: 'OSM'
+                        source: 'OSM',
+                        // Compatibility properties
+                        latitude: parsedLat,
+                        longitude: parsedLng
                     };
                 })
                 .filter(Boolean)
-                .filter(h => h.latitude && h.longitude);
+                .filter(h => isValidCoordinate(h.lat, h.lng));
                 
             console.log("[PARSED OSM FACILITIES]", osmHospitals);
         } catch (err) {
@@ -208,10 +252,10 @@ const PatientDashboard = () => {
                 // Proximity check: Is there a DB hospital within 300m?
                 for (let dbH of dbHospitals) {
                     const d = haversine(
-                        dbH.latitude || dbH.lat,
-                        dbH.longitude || dbH.lng,
-                        h.latitude || h.lat,
-                        h.longitude || h.lng
+                        dbH.lat,
+                        dbH.lng,
+                        h.lat,
+                        h.lng
                     );
                     if (d < 0.3) { // 300 meters
                         isDuplicate = true;
@@ -227,14 +271,14 @@ const PatientDashboard = () => {
 
         const finalHospitals = Array.from(mergedMap.values())
             .map(h => {
-                // DISTANCE MUST ALWAYS BE FROM USER CURRENT LOCATION (GPS)
-                const refLat = liveLocation?.lat || coords.lat;
-                const refLng = liveLocation?.lng || coords.lng;
+                // DISTANCE MUST ALWAYS BE FROM CURRENT ACTIVE SEARCH CENTER
+                const refLat = coords.lat;
+                const refLng = coords.lng;
                 const dist = haversine(
                     refLat,
                     refLng,
-                    h.latitude || h.lat,
-                    h.longitude || h.lng
+                    h.lat,
+                    h.lng
                 );
 
                 const final = { ...h, distance: parseFloat(dist.toFixed(2)) };
@@ -242,12 +286,13 @@ const PatientDashboard = () => {
                 return final;
             })
             .filter(h => {
-                // STRICT RADIUS FILTERING BASED ON GPS DISTANCE
+                // STRICT RADIUS FILTERING BASED ON DISTANCE FROM SEARCH CENTER
                 const radiusKm = radius / 1000;
                 return h.distance <= radiusKm;
             });
 
         finalHospitals.sort((a, b) => a.distance - b.distance);
+        console.log("[PARSED HOSPITALS COUNT]", finalHospitals.length);
         setHospitals(finalHospitals);
         setLoading(false);
         isFetchingRef.current = false;
@@ -259,7 +304,7 @@ const PatientDashboard = () => {
                 hospitalId: h.id,
                 hospitalName: h.name,
                 isExternal: !h.is_registered,
-                location: { lat: h.latitude, lng: h.longitude },
+                location: { lat: h.lat, lng: h.lng },
                 address: h.address
             }
         });
@@ -267,7 +312,7 @@ const PatientDashboard = () => {
 
     const handleNavigation = (h) => {
         const origin = liveLocation ? `${liveLocation.lat},${liveLocation.lng}` : '';
-        const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${h.latitude},${h.longitude}&travelmode=driving`;
+        const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${h.lat},${h.lng}&travelmode=driving`;
         window.open(url, "_blank");
     };
 
@@ -304,13 +349,15 @@ const PatientDashboard = () => {
                     </div>
 
                     <div className="relative h-[400px] rounded-[3rem] overflow-hidden border-4 border-slate-800 shadow-2xl">
-                        {liveLocation && (
+                        {showMap && (
                             <MapContainer center={[coords.lat, coords.lng]} zoom={13} className="w-full h-full">
                                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                                 <MapUpdater coords={coords} />
-                                <Marker position={[liveLocation.lat, liveLocation.lng]} icon={userIcon}><Popup>You</Popup></Marker>
+                                {isValidCoordinate(liveLocation?.lat, liveLocation?.lng) && (
+                                    <Marker position={[liveLocation.lat, liveLocation.lng]} icon={userIcon}><Popup>You</Popup></Marker>
+                                )}
                                 {hospitals.map(h => (
-                                    <Marker key={h.id} position={[h.latitude, h.longitude]} icon={hospitalIcon}>
+                                    <Marker key={h.id} position={[h.lat, h.lng]} icon={hospitalIcon}>
                                         <Popup><div className="p-2 font-bold">{h.name}</div></Popup>
                                     </Marker>
                                 ))}
